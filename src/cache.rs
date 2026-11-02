@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use hf_hub::{Cache as HFCache, Repo, api::sync::Api};
+use hf_hub::{
+    Cache as HFCache, Repo,
+    api::sync::{Api, ApiBuilder},
+};
 use reqwest::blocking::Client;
 use rustls::crypto::{CryptoProvider, ring};
 use tempfile::NamedTempFile;
@@ -23,7 +26,9 @@ impl Cache {
     /// and creates the synchronous Hugging Face API client.
     pub fn new() -> Result<Self, CacheError> {
         Self::ensure_crypto_provider();
-        let hf_api = Api::new().map_err(Self::make_cache_error)?;
+        let hf_api = ApiBuilder::from_env()
+            .build()
+            .map_err(Self::make_cache_error)?;
         Ok(Self { hf_api })
     }
 
@@ -153,7 +158,7 @@ impl Cache {
     /// Checks whether the default ONNX model and tokenizer are present in the
     /// local Hugging Face cache. This does not perform a network request.
     pub fn is_cached(model_id: &str) -> bool {
-        let repo = HFCache::default().model(model_id.to_string());
+        let repo = HFCache::from_env().model(model_id.to_string());
 
         repo.get("onnx/model.onnx").is_some()
             && repo.get("tokenizer.json").is_some()
@@ -177,7 +182,7 @@ impl Cache {
     /// both failures.
     pub fn clear_cache(model_id: &str) -> Result<(), CacheError> {
         // only remove the GIST-Embedding
-        let hf_cache = HFCache::default();
+        let hf_cache = HFCache::from_env();
         let repo = Repo::model(model_id.to_string());
         let repo_dir = hf_cache.path().join(repo.folder_name());
         let del1_res = if repo_dir.exists() {
